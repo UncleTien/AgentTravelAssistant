@@ -3,6 +3,7 @@ import json
 from config import SERPAPI_KEY
 from utils import format_datetime, fetch_flights, extract_cheapest_flights
 from agents import researcher, planner, hotel_restaurant_finder
+from email_utils import send_itinerary_email
 
 st.set_page_config(page_title="🌍 AI Travel Planner", layout="wide")
 st.markdown(
@@ -208,3 +209,34 @@ if st.button("Generate Travel Plan"):
     st.write(itinerary.content)
 
     st.success("Travel plan generated successfully!")
+
+
+# ...Send Email...
+    st.markdown("---")
+    st.subheader("Send Itinerary to Email")
+    sender_email = st.text_input("Sender Email:")
+    receiver_email = st.text_input("Receiver Email:")
+    email_subject = st.text_input("Email Subject:", "Your AI Travel Itinerary")
+    email_body = st.text_area(
+        "Email Body:",
+        f"{itinerary.content}\n\nHotels & Restaurants:\n{hotel_restaurant_results.content}" if itinerary else ""
+    )
+
+    if st.button("Send Email"):
+        if sender_email and receiver_email and email_subject:
+            try:
+                # Hàm này dùng SendGrid, không cần mật khẩu Gmail
+                success = send_itinerary_email(
+                    sender_email=sender_email,
+                    receiver_email=receiver_email,
+                    subject=email_subject,
+                    body=email_body
+                )
+                if success:
+                    st.success("Itinerary sent to your email!")
+                else:
+                    st.error("Failed to send email. Please check your SendGrid API key and email addresses.")
+            except Exception as e:
+                st.error(f"Failed to send email: {e}")
+        else:
+            st.warning("Please fill in all required fields.")
