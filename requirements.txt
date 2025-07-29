@@ -4,4 +4,4 @@ google-genai>=0.3.2
 agno>=0.1.5
 python-dotenv>=1.0.1
 yagmail>=0.15.293
-sendgrid>=6.9.7
+
