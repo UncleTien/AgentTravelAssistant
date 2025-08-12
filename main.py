@@ -61,6 +61,18 @@ def to_plain_list(text: str) -> str:
         lines = [f"- {l}" for l in lines if l]
     return "\n".join(lines)
 
+# --- Biến URL thành link (HTML hoặc Markdown) ---
+_URL_RE = re.compile(r'(https?://[^\s\]\)<>"]+)')
+
+def linkify(text: str, html: bool = True) -> str:
+    """Tìm URL và biến thành thẻ <a> (hoặc Markdown) để bấm được."""
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    if html:
+        return _URL_RE.sub(r'<a href="\1" target="_blank" rel="noopener noreferrer">\1</a>', text)
+    else:
+        return _URL_RE.sub(r'[\1](\1)', text)
+
 # ============== Retry cho agent (chống 429) ====================
 def safe_agent_run(agent, prompt: str, retries: int = 3, base_wait: float = 4.0, component_name: str = "agent"):
     for i in range(retries):
@@ -99,7 +111,9 @@ def _fallback_pick_flights(flight_data, limit=6):
             "price": price,
             "total_duration": duration,
             "flights": flights_info,
-            "departure_token": f.get("departure_token", "")
+            "departure_token": f.get("departure_token", ""),
+            "link": f.get("link"),
+            "booking_options": f.get("booking_options"),
         })
     return normalized
 
@@ -434,12 +448,13 @@ Sở thích: {activity_preferences}. Hành trình: {num_days} ngày. Chủ đề
 
 HÃY TRẢ VỀ VĂN BẢN THUẦN (KHÔNG MARKDOWN, KHÔNG BẢNG).
 Chỉ liệt kê danh sách gạch đầu dòng, mỗi dòng 1 mục đầy đủ thông tin.
+Chia phần 1 và phần 2 cho dễ nhìn. 
 
 Phần 1 - Khách sạn (8–12 gợi ý):
-- Tên khách sạn | Khu vực gần landmark | Hạng sao | Điểm đánh giá | Giá ước tính/đêm (USD) | Chính sách huỷ | Link đặt phòng
+- Tên khách sạn | Khu vực gần landmark | Hạng sao | Điểm đánh giá | Giá ước tính/đêm (USD) | Chính sách huỷ | Link đặt phòng (có chưa URL đầy đủ, đưa thẳng đến website, có chưa https://)
 
 Phần 2 - Nhà hàng/quán ăn (10–15 gợi ý, đủ sáng/trưa/tối, nhiều mức giá):
-- Tên | Loại ẩm thực | Khu vực | Mức giá/người (USD) | Có đặt bàn không | Link Maps/Website
+- Tên | Loại ẩm thực | Khu vực | Mức giá/người (USD) | Có đặt bàn không | Link Maps/Website Link đặt phòng (có chưa URL đầy đủ, đưa thẳng đến website, có chưa https://)
 
 Ưu tiên vị trí thuận tiện và chỗ đáng tin cậy. Ngôn ngữ: tiếng Việt.
             """.strip()
@@ -479,15 +494,26 @@ Phần 2 - Nhà hàng/quán ăn (10–15 gợi ý, đủ sáng/trưa/tối, nhi�
                     departure_time = format_datetime(departure.get("time", "N/A"))
                     arrival_time = format_datetime(arrival.get("time", "N/A"))
 
-                    departure_token = flight.get("departure_token", "")
-                    booking_link = "#"
-                    if departure_token:
-                        search_with_token = fetch_flights(source, destination, departure_date, return_date)
-                        try:
-                            booking_options = search_with_token['best_flights'][idx]['booking_token']
-                            booking_link = f"https://www.google.com/travel/flights?tfs={booking_options}"
-                        except Exception:
-                            booking_link = "#"
+                    # --- Link đặt vé: ưu tiên link trực tiếp nếu có, fallback Google Flights ---
+                    booking_link = None
+                    try:
+                        booking_link = (
+                            flight.get("link")
+                            or (flight.get("booking_options") or [{}])[0].get("link")
+                        )
+                    except Exception:
+                        booking_link = None
+
+                    if not booking_link:
+                        dep = str(departure_date)
+                        ret = str(return_date)
+                        booking_link = (
+                            f"https://www.google.com/travel/flights?"
+                            f"q={source}%20to%20{destination}%20{dep}%20{ret}"
+                        )
+
+                    if not isinstance(booking_link, str) or not booking_link.startswith(("http://", "https://")):
+                        booking_link = "https://www.google.com/travel/flights"
 
                     st.markdown(
                         f"""
@@ -506,12 +532,14 @@ Phần 2 - Nhà hàng/quán ăn (10–15 gợi ý, đủ sáng/trưa/tối, nhi�
         else:
             st.warning("Không có dữ liệu chuyến bay.")
 
-        # Hai phần sau hiển thị VĂN BẢN THUẦN, không Markdown/table
+        # Hai phần sau hiển thị VĂN BẢN THUẦN đã linkify, dùng Markdown để có link bấm được
         st.subheader("Điểm đến & hoạt động nổi bật ")
-        st.text(to_plain_list(research_results.content))
+        research_plain = to_plain_list(research_results.content)
+        st.markdown(linkify(research_plain, html=True).replace("\n", "  \n"), unsafe_allow_html=True)
 
         st.subheader("Khách sạn & Nhà hàng ")
-        st.text(to_plain_list(hotel_restaurant_results.content))
+        hotels_plain = to_plain_list(hotel_restaurant_results.content)
+        st.markdown(linkify(hotels_plain, html=True).replace("\n", "  \n"), unsafe_allow_html=True)
 
         st.subheader("Lịch trình cá nhân hóa của bạn")
         st.write(itinerary.content)
@@ -537,7 +565,8 @@ if "itinerary" in st.session_state:
 
         itinerary_html = st.session_state.itinerary.replace('\n', '<br>')
         hotel_html_raw = st.session_state.hotel_restaurant_results
-        hotel_html = to_plain_list(hotel_html_raw).replace('\n', '<br>')
+        # linkify để URL trong email bấm được
+        hotel_html = linkify(to_plain_list(hotel_html_raw), html=True).replace('\n', '<br>')
 
         body = f"""
         <html>
@@ -546,6 +575,8 @@ if "itinerary" in st.session_state:
                 body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
                 h2 {{ color: #2c3e50; }}
                 .section {{ margin-bottom: 20px; }}
+                a {{ color: #2980b9; text-decoration: none; }}
+                a:hover {{ text-decoration: underline; }}
             </style>
         </head>
         <body>
