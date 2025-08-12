@@ -338,21 +338,26 @@ budget = st.sidebar.number_input("Ngân sách mong muốn (USD):", min_value=100
 flight_class = st.sidebar.radio("Hạng vé máy bay:", ["Phổ thông", "Thương gia", "Hạng nhất"])
 hotel_rating = st.sidebar.selectbox("Xếp hạng khách sạn mong muốn:", ["Bất kỳ", "3⭐", "4⭐", "5⭐"])
 
-st.sidebar.subheader("Danh sách cần mang theo")
-packing_list = {
-    "Quần áo": True,
-    "Giày dép thoải mái": True,
-    "Kính râm & kem chống nắng": False,
-    "Sách hướng dẫn du lịch": False,
-    "Thuốc & dụng cụ y tế": True
-}
-for item, checked in packing_list.items():
-    st.sidebar.checkbox(item, value=checked)
+# st.sidebar.subheader("Danh sách cần mang theo")
+# packing_list = {
+#     "Quần áo": True,
+#     "Giày dép thoải mái": True,
+#     "Kính râm & kem chống nắng": False,
+#     "Sách hướng dẫn du lịch": False,
+#     "Thuốc & dụng cụ y tế": True
+# }
+# for item, checked in packing_list.items():
+#     st.sidebar.checkbox(item, value=checked)
 
-st.sidebar.subheader("Thông tin cần thiết")
-visa_required = st.sidebar.checkbox("Kiểm tra yêu cầu visa")
-travel_insurance = st.sidebar.checkbox("Mua bảo hiểm du lịch")
-currency_converter = st.sidebar.checkbox("Tỷ giá ngoại tệ")
+# st.sidebar.subheader("Thông tin cần thiết")
+# visa_required = st.sidebar.checkbox("Kiểm tra yêu cầu visa")
+# travel_insurance = st.sidebar.checkbox("Mua bảo hiểm du lịch")
+# currency_converter = st.sidebar.checkbox("Tỷ giá ngoại tệ")
+
+visa_required = False
+travel_insurance = False
+currency_converter = False
+
 
 params = {
     "engine": "google_flights",
